@@ -185,15 +185,8 @@ export const translations = {
 let currentLanguage: Language = "en"
 
 export function getTranslation(key: string, language?: Language): string {
-  const lang = language || currentLanguage
-  const keys = key.split(".")
-  let value: any = translations[lang]
-
-  for (const k of keys) {
-    value = value?.[k]
-  }
-
-  return value || translations.en[key] || key
+  const lang = language || currentLanguage;
+  return translations[lang][key] || translations.en[key] || key;
 }
 
 export function getCurrentLanguage(): Language {

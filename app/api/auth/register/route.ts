@@ -4,6 +4,20 @@ import bcrypt from "bcryptjs"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+interface UserInsert {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  password_hash: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -25,18 +39,16 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12)
 
     // Prepare user data - only include fields that exist in the database
-    const userData: any = {
+    const userData: UserInsert = {
       first_name: firstName,
       last_name: lastName,
       email: email.toLowerCase(),
-      phone,
       password_hash: hashedPassword,
       role: role,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
-
-    // Add optional fields if they exist and have values
+    if (phone) userData.phone = phone
     if (dateOfBirth) userData.date_of_birth = dateOfBirth
     if (gender) userData.gender = gender
     if (address) userData.address = address

@@ -134,8 +134,15 @@ export function AppointmentManagement() {
     }
   }
 
-  const updateAppointmentStatus = (id: string, newStatus: string) => {
-    setAppointments((prev) => prev.map((apt) => (apt.id === id ? { ...apt, status: newStatus as any } : apt)))
+  const updateAppointmentStatus = (
+    id: string,
+    newStatus: "scheduled" | "completed" | "cancelled" | "no_show"
+  ) => {
+    setAppointments((prev) =>
+      prev.map((apt) =>
+        apt.id === id ? { ...apt, status: newStatus } : apt
+      )
+    )
   }
 
   return (
