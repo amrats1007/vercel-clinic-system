@@ -1,8 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "./lib/supabase"
+import { jwtVerify } from 'jose'
 
 const protectedRoutes = ["/admin", "/clinic-admin", "/doctor", "/secretary", "/purchasing", "/patient"]
 const authRoutes = ["/login", "/register"]
+
+// JWT secret for session validation
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key-change-in-production')
+
+async function validateSessionToken(token: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    return payload.userId as string
+  } catch (error) {
+    return null
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
@@ -18,11 +31,17 @@ export async function middleware(request: NextRequest) {
   if (isAuthRoute && sessionCookie) {
     // Verify session is valid and redirect based on role
     try {
+      const userId = await validateSessionToken(sessionCookie.value)
+      if (!userId) {
+        // Invalid token, continue to auth page
+        return NextResponse.next()
+      }
+
       const supabase = createServerClient()
       const { data: user } = await supabase
         .from("users")
         .select("role, is_active, must_change_password")
-        .eq("id", sessionCookie.value)
+        .eq("id", userId)
         .eq("is_active", true)
         .single()
 
@@ -64,11 +83,16 @@ export async function middleware(request: NextRequest) {
   // Role-based route protection with clinic restrictions
   if (isProtectedRoute && sessionCookie) {
     try {
+      const userId = await validateSessionToken(sessionCookie.value)
+      if (!userId) {
+        return NextResponse.redirect(new URL("/login", request.url))
+      }
+
       const supabase = createServerClient()
       const { data: user } = await supabase
         .from("users")
         .select("role, is_active, clinic_id, must_change_password")
-        .eq("id", sessionCookie.value)
+        .eq("id", userId)
         .eq("is_active", true)
         .single()
 

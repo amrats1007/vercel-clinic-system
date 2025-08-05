@@ -1,6 +1,7 @@
 import "server-only"
 import { cookies } from "next/headers"
 import { createServerClient } from "./supabase"
+import { SignJWT, jwtVerify } from 'jose'
 
 export interface User {
   id: string
@@ -38,6 +39,12 @@ export async function getUser(): Promise<User | null> {
       return null
     }
 
+    // Validate session token and get user ID
+    const userId = await validateSessionToken(sessionCookie.value)
+    if (!userId) {
+      return null
+    }
+
     const supabase = createServerClient()
     const { data: user } = await supabase
       .from("users")
@@ -53,7 +60,7 @@ export async function getUser(): Promise<User | null> {
         must_change_password,
         clinics(name)
       `)
-      .eq("id", sessionCookie.value)
+      .eq("id", userId)
       .eq("is_active", true)
       .single()
 
@@ -138,14 +145,39 @@ export async function canAccessPatientData(user: User, patientId: string): Promi
   return false
 }
 
-export async function createSession(userId: string) {
+// Add secure session token functions
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key-change-in-production')
+
+export async function createSecureSession(userId: string) {
   const cookieStore = await cookies()
-  cookieStore.set("session", userId, {
+  
+  // Create JWT token with user ID and expiration
+  const token = await new SignJWT({ userId, iat: Math.floor(Date.now() / 1000) })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('7d')
+    .sign(JWT_SECRET)
+  
+  cookieStore.set("session", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 7, // 7 days
   })
+}
+
+export async function validateSessionToken(token: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(token, JWT_SECRET)
+    return payload.userId as string
+  } catch (error) {
+    console.error('Invalid session token:', error)
+    return null
+  }
+}
+
+export async function createSession(userId: string) {
+  // Use the new secure session creation
+  await createSecureSession(userId)
 }
 
 export async function deleteSession() {

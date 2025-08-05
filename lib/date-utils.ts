@@ -55,10 +55,21 @@ export function formatDateTime(date: Date, language: Language = "en"): string {
   return `${formatDate(date, language)} ${formatTime(date, language)}`
 }
 
-export function formatRelativeTime(date: Date, language: Language = "en"): string {
+export function formatRelativeTime(date: Date, language: Language = "en", timezone?: string): string {
+  // Use user's timezone or default to system timezone
+  const userTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+  
+  // Create timezone-aware dates for comparison
   const now = new Date()
-  const diffInMs = date.getTime() - now.getTime()
-  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+  const inputDate = new Date(date)
+  
+  // Get the start of day for both dates in the user's timezone
+  const nowStartOfDay = new Date(now.toLocaleDateString('en-CA', { timeZone: userTimezone }) + 'T00:00:00')
+  const inputStartOfDay = new Date(inputDate.toLocaleDateString('en-CA', { timeZone: userTimezone }) + 'T00:00:00')
+  
+  // Calculate difference in days using timezone-aware dates
+  const diffInMs = inputStartOfDay.getTime() - nowStartOfDay.getTime()
+  const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24))
 
   if (diffInDays === 0) {
     return language === "ar" ? "اليوم" : "Today"
@@ -66,6 +77,10 @@ export function formatRelativeTime(date: Date, language: Language = "en"): strin
     return language === "ar" ? "غداً" : "Tomorrow"
   } else if (diffInDays === -1) {
     return language === "ar" ? "أمس" : "Yesterday"
+  } else if (diffInDays > 1 && diffInDays <= 7) {
+    // Show day name for dates within a week
+    const dayIndex = inputDate.getDay()
+    return getDayName(dayIndex, language)
   } else {
     return formatDate(date, language)
   }
@@ -100,33 +115,39 @@ export function getDayName(dayIndex: number, language: Language = "en"): string 
   return days[language][dayIndex] || days.en[dayIndex]
 }
 
-export function isToday(date: Date): boolean {
+export function isToday(date: Date, timezone?: string): boolean {
+  const userTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const today = new Date()
-  return (
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear()
-  )
+  
+  // Compare dates in user's timezone
+  const todayStr = today.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  
+  return todayStr === dateStr
 }
 
-export function isTomorrow(date: Date): boolean {
+export function isTomorrow(date: Date, timezone?: string): boolean {
+  const userTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
-  return (
-    date.getDate() === tomorrow.getDate() &&
-    date.getMonth() === tomorrow.getMonth() &&
-    date.getFullYear() === tomorrow.getFullYear()
-  )
+  
+  // Compare dates in user's timezone
+  const tomorrowStr = tomorrow.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  
+  return tomorrowStr === dateStr
 }
 
-export function isYesterday(date: Date): boolean {
+export function isYesterday(date: Date, timezone?: string): boolean {
+  const userTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
-  return (
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear()
-  )
+  
+  // Compare dates in user's timezone
+  const yesterdayStr = yesterday.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  const dateStr = date.toLocaleDateString('en-CA', { timeZone: userTimezone })
+  
+  return yesterdayStr === dateStr
 }
 
 export function isFutureDate(date: Date): boolean {

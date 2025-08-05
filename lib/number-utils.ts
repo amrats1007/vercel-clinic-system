@@ -139,33 +139,59 @@ export function formatPercentage(
 
 // Parse currency input (remove formatting and convert to number)
 export function parseCurrency(input: string, language: Language): number {
+  // Validate input first
+  if (!validateCurrencyInput(input, language)) {
+    return 0
+  }
+
   if (language === "ar") {
     // Convert Arabic digits and separators
     let cleaned = toWesternDigits(input)
     cleaned = cleaned.replace(/،/g, "").replace(/٫/g, ".")
-    // Remove Arabic currency symbols
+    
+    // Remove Arabic currency symbols safely
     Object.values(arabicCurrencySymbols).forEach((symbol) => {
-      cleaned = cleaned.replace(symbol, "")
+      // Escape the symbol for safe replacement
+      const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      cleaned = cleaned.replace(new RegExp(escapedSymbol, 'g'), "")
     })
+    
     cleaned = cleaned.trim()
-    return Number.parseFloat(cleaned) || 0
+    const parsed = Number.parseFloat(cleaned)
+    
+    // Return 0 for invalid numbers or infinity
+    return Number.isFinite(parsed) ? parsed : 0
   }
 
-  // Remove English formatting
-  const cleaned = input.replace(/[$,]/g, "").trim()
-  return Number.parseFloat(cleaned) || 0
+  // Remove English formatting safely
+  const cleaned = input.replace(/[$€£¥,]/g, "").trim()
+  const parsed = Number.parseFloat(cleaned)
+  
+  // Return 0 for invalid numbers or infinity
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 // Parse percentage input
 export function parsePercentage(input: string, language: Language): number {
+  // Validate input first
+  if (!validatePercentageInput(input, language)) {
+    return 0
+  }
+
   if (language === "ar") {
     let cleaned = toWesternDigits(input)
     cleaned = cleaned.replace(/٪/g, "").trim()
-    return Number.parseFloat(cleaned) || 0
+    const parsed = Number.parseFloat(cleaned)
+    
+    // Return 0 for invalid numbers or infinity, and cap at reasonable percentage values
+    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1000 ? parsed : 0
   }
 
   const cleaned = input.replace(/%/g, "").trim()
-  return Number.parseFloat(cleaned) || 0
+  const parsed = Number.parseFloat(cleaned)
+  
+  // Return 0 for invalid numbers or infinity, and cap at reasonable percentage values
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1000 ? parsed : 0
 }
 
 // Format file size
@@ -297,26 +323,58 @@ export function formatTaxCalculation(
 
 // Validate currency input
 export function validateCurrencyInput(input: string, language: Language): boolean {
-  if (language === "ar") {
-    // Allow Arabic digits, Arabic separators, and Arabic currency symbols
-    const arabicCurrencyPattern = /^[٠-٩،٫\s]*[ر.سد.أيوروج.إد.إج.مد.أد.كر.قد.بر.عل.لد.عل.سد.مد.تد.جد.ل]*$/
-    return arabicCurrencyPattern.test(input.trim())
+  // First check for basic safety - no HTML/script tags or special characters that could be malicious
+  const dangerousPattern = /<[^>]*>|javascript:|data:|vbscript:|on\w+\s*=/i
+  if (dangerousPattern.test(input)) {
+    return false
   }
 
-  // Allow English digits, separators, and common currency symbols
-  const englishCurrencyPattern = /^[\d,.\s$€£¥]*$/
-  return englishCurrencyPattern.test(input.trim())
+  // Limit input length to prevent DoS attacks
+  if (input.length > 50) {
+    return false
+  }
+
+  const trimmedInput = input.trim()
+  
+  if (language === "ar") {
+    // More restrictive Arabic currency pattern - only allow specific known currency symbols
+    const arabicCurrencySymbolsRegex = Object.values(arabicCurrencySymbols)
+      .map(symbol => symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) // Escape special regex chars
+      .join('|')
+    
+    const arabicCurrencyPattern = new RegExp(`^[٠-٩،٫\\s]*(${arabicCurrencySymbolsRegex})?[\\s]*$`)
+    return arabicCurrencyPattern.test(trimmedInput)
+  }
+
+  // More restrictive English currency pattern
+  const englishCurrencyPattern = /^[\d,.\s]*[$€£¥]?[\s]*$/
+  return englishCurrencyPattern.test(trimmedInput)
 }
 
 // Validate percentage input
 export function validatePercentageInput(input: string, language: Language): boolean {
-  if (language === "ar") {
-    const arabicPercentagePattern = /^[٠-٩٫\s٪]*$/
-    return arabicPercentagePattern.test(input.trim())
+  // Check for dangerous patterns
+  const dangerousPattern = /<[^>]*>|javascript:|data:|vbscript:|on\w+\s*=/i
+  if (dangerousPattern.test(input)) {
+    return false
   }
 
-  const englishPercentagePattern = /^[\d.\s%]*$/
-  return englishPercentagePattern.test(input.trim())
+  // Limit input length
+  if (input.length > 20) {
+    return false
+  }
+
+  const trimmedInput = input.trim()
+
+  if (language === "ar") {
+    // Only allow Arabic digits, Arabic decimal separator, spaces, and percentage symbol
+    const arabicPercentagePattern = /^[٠-٩٫\s]*٪?[\s]*$/
+    return arabicPercentagePattern.test(trimmedInput)
+  }
+
+  // Only allow English digits, decimal point, spaces, and percentage symbol
+  const englishPercentagePattern = /^[\d.\s]*%?[\s]*$/
+  return englishPercentagePattern.test(trimmedInput)
 }
 
 // Get currency symbol for display
